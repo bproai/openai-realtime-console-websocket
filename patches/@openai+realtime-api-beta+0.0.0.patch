@@ -1,8 +1,8 @@
 diff --git a/node_modules/@openai/realtime-api-beta/lib/api.js b/node_modules/@openai/realtime-api-beta/lib/api.js
-index e522263..c87a58b 100644
+index e522263..f93a828 100644
 --- a/node_modules/@openai/realtime-api-beta/lib/api.js
 +++ b/node_modules/@openai/realtime-api-beta/lib/api.js
-@@ -56,20 +56,29 @@ export class RealtimeAPI extends RealtimeEventHandler {
+@@ -56,7 +56,7 @@ export class RealtimeAPI extends RealtimeEventHandler {
     * @param {{model?: string}} [settings]
     * @returns {Promise<true>}
     */
@@ -11,38 +11,7 @@ index e522263..c87a58b 100644
      if (!this.apiKey && this.url === this.defaultUrl) {
        console.warn(`No apiKey provided for connection to "${this.url}"`);
      }
-     if (this.isConnected()) {
-       throw new Error(`Already connected`);
-     }
-+    const configureSession = (ws) => {
-+      const sessionUpdate = {
-+        type: 'session.update',
-+        session: {
-+          voice: 'verse',
-+        },
-+      };
-+      ws.send(JSON.stringify(sessionUpdate));
-+    };
-     if (globalThis.document) {
-       /**
-        * Web browser
-        */
-       if (this.apiKey) {
-         console.warn(
--          'Warning: Connecting using API key in the browser, this is not recommended',
-+          'Warning!!!: Connecting using API key in the browser, this is not recommended',
-         );
-       }
-       const WebSocket = globalThis.WebSocket;
-@@ -91,6 +100,7 @@ export class RealtimeAPI extends RealtimeEventHandler {
-         ws.addEventListener('open', () => {
-           this.log(`Connected to "${this.url}"`);
-           ws.removeEventListener('error', connectionErrorHandler);
-+          configureSession(ws); // Configure session after connection
-           ws.addEventListener('error', () => {
-             this.disconnect(ws);
-             this.log(`Error, disconnected from "${this.url}"`);
-@@ -113,7 +123,7 @@ export class RealtimeAPI extends RealtimeEventHandler {
+@@ -113,7 +113,7 @@ export class RealtimeAPI extends RealtimeEventHandler {
        const wsModule = await import(/* webpackIgnore: true */ moduleName);
        const WebSocket = wsModule.default;
        const ws = new WebSocket(
@@ -51,11 +20,3 @@ index e522263..c87a58b 100644
          [],
          {
            finishRequest: (request) => {
-@@ -137,6 +147,7 @@ export class RealtimeAPI extends RealtimeEventHandler {
-         ws.on('open', () => {
-           this.log(`Connected to "${this.url}"`);
-           ws.removeListener('error', connectionErrorHandler);
-+          configureSession(ws); // Configure session after connection
-           ws.on('error', () => {
-             this.disconnect(ws);
-             this.log(`Error, disconnected from "${this.url}"`);
