@@ -125,6 +125,31 @@ export function ConsolePage() {
   });
   const [marker, setMarker] = useState<Coordinates | null>(null);
 
+  const [userInput, setUserInput] = useState<string>('');
+  const sendUserInput = useCallback(async () => {
+    if (!userInput.trim()) return; // Prevent empty inputs
+    const client = clientRef.current;
+  
+    if (client.isConnected()) {
+      await client.updateSession({
+        modalities: ["text"]
+      });      
+
+      client.sendUserMessageContent([
+        {
+          type: 'input_text',
+          text: userInput.trim(),
+        },
+      ]);
+      
+      setUserInput(''); // Clear the input after sending
+
+    } else {
+      console.error('Client is not connected');
+    }
+  }, [userInput]);
+  
+
   /**
    * Utility for formatting the timing of logs
    */
@@ -376,6 +401,9 @@ export function ConsolePage() {
     const wavStreamPlayer = wavStreamPlayerRef.current;
     const client = clientRef.current;
 
+    // client.updateSession({ model: 'gpt-4o-mini-realtime-preview-2024-12-17' });
+
+
     // Set instructions
     client.updateSession({ instructions: instructions });
     client.updateSession({ voice: 'shimmer' });
@@ -455,16 +483,91 @@ export function ConsolePage() {
         return json;
       }
     );
+    client.addTool(
+      {
+        name: 'get_time',
+        description: 'Get local time for a given location.',
+        parameters: {
+          type: 'object',
+          properties: {
+            location: {
+              type: 'string',
+              description: 'The name of the location for which to retrieve the local time.',
+            },
+          },
+          required: ['location'],
+        },
+      },
+      async ({ location }: { [key: string]: any }) => {
+        try {
+          // Predefined mapping of common locations to timezone identifiers
+          const timezoneMapping: { [key: string]: string } = {
+            'New York': 'America/New_York',
+            'Mountain View': 'America/Los_Angeles',
+            'Sioux Falls': 'US/Central',
+            'London': 'Europe/London',
+            'Tokyo': 'Asia/Tokyo',
+            'UTC': 'Etc/UTC',
+            // Add more mappings as needed
+          };
+    
+          // Validate and map the location input
+          const timezone = timezoneMapping[location] || location;
+          if (!timezone) {
+            throw new Error(`Invalid location: "${location}".`);
+          }
+    
+          // Fetch the local time from the API
+          const response = await fetch(
+            `https://worldtimeapi.org/api/timezone/${encodeURIComponent(timezone)}`
+          );
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch time data. HTTP Status: ${response.status}`
+            );
+          }
+          const json = await response.json();
+          const localTime = json.datetime;
+    
+          // Save the result in memory for future use
+          setMemoryKv((memoryKv) => ({
+            ...memoryKv,
+            [location]: localTime,
+          }));
+    
+          return { location, localTime };
+        } catch (error) {
+          if (error instanceof Error) {
+            console.error('Error fetching time data:', error.message);
+            return {
+              error: `Could not retrieve time for the location "${location}". Error: ${error.message}`,
+            };
+          }
+          console.error('Unexpected error fetching time data:', error);
+          return {
+            error: `Could not retrieve time for the location "${location}". An unexpected error occurred.`,
+          };
+        }
+      }
+    );
 
+    
     // handle realtime events from client + server for event logging
     client.on('realtime.event', (realtimeEvent: RealtimeEvent) => {
-      setRealtimeEvents((realtimeEvents) => {
+      setRealtimeEvents((realtimeEvents) => {       
         const lastEvent = realtimeEvents[realtimeEvents.length - 1];
         if (lastEvent?.event.type === realtimeEvent.event.type) {
           // if we receive multiple events in a row, aggregate them for display purposes
           lastEvent.count = (lastEvent.count || 0) + 1;
           return realtimeEvents.slice(0, -1).concat(lastEvent);
         } else {
+          // reset response modalities to audio and text when speech starts
+          if (realtimeEvent.event.type=='input_audio_buffer.speech_started') {
+            client.updateSession({
+                modalities: ["audio", "text"],
+            });
+          }
+            
           return realtimeEvents.concat(realtimeEvent);
         }
       });
@@ -482,6 +585,11 @@ export function ConsolePage() {
       if (delta?.audio) {
         wavStreamPlayer.add16BitPCM(delta.audio, item.id);
       }
+
+      // if (item.status === 'completed') {
+      //   // The item is fully done streaming text/audio
+      //   await client.updateSession({ modalities: ['audio', 'text'] });
+      // }      
       if (item.status === 'completed' && item.formatted.audio?.length) {
         const wavFile = await WavRecorder.decode(
           item.formatted.audio,
@@ -691,6 +799,29 @@ export function ConsolePage() {
               }
             />
           </div>
+
+          {/* New Input Field for Text Prompts */}
+          <div className="text-input-container">
+            <input
+              type="text"
+              placeholder="Enter your prompt..."
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  sendUserInput();
+                }
+              }}
+              disabled={!isConnected}
+            />
+            <Button
+              label="Send"
+              buttonStyle="action"
+              onClick={sendUserInput}
+              disabled={!userInput.trim() || !isConnected}
+            />
+          </div>      
         </div>
         <div className="content-right">
           <div className="content-block map">
