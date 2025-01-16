@@ -119,6 +119,49 @@ export function ConsolePage() {
   const [canPushToTalk, setCanPushToTalk] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [memoryKv, setMemoryKv] = useState<{ [key: string]: any }>({});
+
+  // Load initial memory from server
+  useEffect(() => {
+    const loadMemory = async () => {
+      // Try relay server first if it's configured
+      if (LOCAL_RELAY_SERVER_URL) {
+        try {
+          const response = await fetch('http://localhost:8081/api/memory');
+          if (response.ok) {
+            const data = await response.json();
+            setMemoryKv(data.memory);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load from relay server:', error);
+        }
+      }
+
+      // Try memory server if relay failed or isn't configured
+      try {
+        const response = await fetch('http://localhost:8082/memory');
+        if (response.ok) {
+          const data = await response.json();
+          setMemoryKv(data.memory);
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to load from memory server:', error);
+      }
+
+      // Fallback to localStorage if both servers fail
+      const savedMemory = localStorage.getItem('app_memory');
+      if (savedMemory) {
+        setMemoryKv(JSON.parse(savedMemory));
+      }
+    };
+    loadMemory();
+  }, []);
+
+  // Save to localStorage whenever memoryKv changes
+  useEffect(() => {
+    localStorage.setItem('app_memory', JSON.stringify(memoryKv));
+  }, [memoryKv]);
   const [coords, setCoords] = useState<Coordinates | null>({
     lat: 37.775593,
     lng: -122.418137,
@@ -411,7 +454,25 @@ export function ConsolePage() {
     client.updateSession({ input_audio_transcription: { model: 'whisper-1' } });
 
     // Add tools
-    client.addTool(
+    
+   
+   client.addTool(
+     {
+       name: 'calculator',
+       description: 'A tool for performing basic mathematical calculations including addition, subtraction, multiplication, and division.',
+       parameters: {
+         type: 'object',
+         properties: {
+           // Define parameters here
+         },
+         required: []
+       },
+     },
+     async (params: { [key: string]: any }) => {
+       // Implement tool logic here
+       return { ok: 2 };
+     }
+   );client.addTool(
       {
         name: 'set_memory',
         description: 'Saves important data about the user into memory.',
@@ -432,12 +493,77 @@ export function ConsolePage() {
         },
       },
       async ({ key, value }: { [key: string]: any }) => {
-        setMemoryKv((memoryKv) => {
-          const newKv = { ...memoryKv };
-          newKv[key] = value;
-          return newKv;
-        });
-        return { ok: true };
+        try {
+          // Update state
+          const newMemory = await new Promise((resolve) => {
+            setMemoryKv((memoryKv) => {
+              const newKv = { ...memoryKv };
+              newKv[key] = value;
+              resolve(newKv);
+              return newKv;
+            });
+          });
+
+          let saved = false;
+
+          // Try relay server first if it's configured
+          if (LOCAL_RELAY_SERVER_URL) {
+            console.log('Trying relay server...');
+            try {
+              const response = await fetch('http://localhost:8081/api/memory', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newMemory),
+              });
+              if (response.ok) {
+                saved = true;
+              }
+            } catch (error: any) {
+              const errorMsg = `Failed to save to relay server (${LOCAL_RELAY_SERVER_URL}): ${error?.message || 'Unknown error'}`;
+              console.error(errorMsg);
+              if (error?.name === 'TypeError' && error?.message?.includes('Failed to fetch')) {
+                console.error('Relay server may not be running. Start it with: npm run relay');
+              }
+            }
+          }
+
+          // Try memory server if relay failed or isn't configured
+          if (!saved) {
+            console.log('Trying memory server...');
+            try {
+              const response = await fetch('http://localhost:8082/memory', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newMemory),
+              });
+              if (response.ok) {
+                saved = true;
+              }
+            } catch (error:any) {
+              const errorMsg = `Failed to save to memory server: ${error?.message || 'Unknown error'}`;
+              console.error(errorMsg);
+              if (error?.name === 'TypeError' && error?.message?.includes('Failed to fetch')) {
+                console.error('Memory server may not be running. Start it with: npm run memory');
+              }
+            }
+          }
+
+          // Always save to localStorage as backup
+          localStorage.setItem('app_memory', JSON.stringify(newMemory));
+
+          if (!saved) {
+            console.warn('Memory saved only to localStorage');
+          }
+
+          return { ok: true };
+        } catch (error) {
+          console.error('Error saving memory:', error);
+          return { error: 'Failed to save memory' };
+        }
       }
     );
     client.addTool(
@@ -554,7 +680,7 @@ export function ConsolePage() {
     
     // handle realtime events from client + server for event logging
     client.on('realtime.event', (realtimeEvent: RealtimeEvent) => {
-      setRealtimeEvents((realtimeEvents) => {       
+      setRealtimeEvents((realtimeEvents) => {
         const lastEvent = realtimeEvents[realtimeEvents.length - 1];
         if (lastEvent?.event.type === realtimeEvent.event.type) {
           // if we receive multiple events in a row, aggregate them for display purposes
@@ -567,12 +693,42 @@ export function ConsolePage() {
                 modalities: ["audio", "text"],
             });
           }
+          
+          // Store requests rate limit in memory when rate_limits.updated event is received
+          if (realtimeEvent.event.type === 'rate_limits.updated' && realtimeEvent.event.rate_limits) {
+            const requestsLimit = realtimeEvent.event.rate_limits.find((limit: any) => limit.name === 'requests');
+            if (requestsLimit) {
+              const formattedLimit = {
+                ...requestsLimit,
+                reset_minutes: Math.ceil(requestsLimit.reset_seconds / 60),
+                reset_seconds: undefined // Remove the seconds field
+              };
+              setMemoryKv(prev => ({
+                ...prev,
+                requests_rate_limit: formattedLimit
+              }));
+            }
+          }
             
           return realtimeEvents.concat(realtimeEvent);
         }
       });
     });
     client.on('error', (event: any) => console.error(event));
+    
+    // Handle disconnection and auto-reconnect
+    client.on('disconnected', () => {
+      console.log('Disconnected, attempting to reconnect in 3 seconds...');
+      setIsConnected(false);
+      // Wait 3 seconds before attempting to reconnect
+      setTimeout(async () => {
+        try {
+          await connectConversation();
+        } catch (error) {
+          console.error('Auto-reconnection failed:', error);
+        }
+      }, 3000);
+    });
     client.on('conversation.interrupted', async () => {
       const trackSampleOffset = await wavStreamPlayer.interrupt();
       if (trackSampleOffset?.trackId) {

@@ -1,0 +1,12 @@
+{
+  "memory": {
+    "requests_rate_limit": {
+      "name": "requests",
+      "limit": 100,
+      "remaining": 30,
+      "reset_minutes": 1000
+    },
+    "location": "Mountain View",
+    "weather": "Mountain View: 6.5°C, wind 1.8 km/h"
+  }
+}

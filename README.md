@@ -57,7 +57,14 @@ There are two functions enabled;
   have location access, and coordinates are "guessed" from the model's training data so
   accuracy might not be perfect.
 - `set_memory`: You can ask the model to remember information for you, and it will store it in
-  a JSON blob on the left.
+  a JSON blob on the left. The memory is persisted in two ways:
+  1. Through the memory server (runs on port 8082): `npm run memory`
+  2. Through the relay server if it's running (port 8081)
+  3. Always backed up to localStorage
+
+  The memory is stored in `src/utils/memory.json` and will persist between sessions. You can run
+  the memory server independently of the relay server to maintain persistence without needing
+  the full relay server running.
 
 You can freely interrupt the model at any time in push-to-talk or VAD mode.
 
@@ -107,6 +114,27 @@ This server is **only a simple message relay**, but it can be extended to:
 - Restrict what types of events the client can receive and send
 
 You will have to implement these features yourself.
+
+## Using the memory server
+
+A standalone memory server is included to handle memory persistence (`npm run memory`). The memory server provides several key benefits:
+
+1. **Browser Security**: Since browsers cannot directly write to the filesystem, the memory server provides a secure way to persist memory to a file without modifying the relay server.
+
+2. **Separation of Concerns**: The memory server handles memory persistence independently of the relay server (which focuses on OpenAI API communication). This separation makes the code more modular and maintainable.
+
+3. **Development Flexibility**: Developers can run just the memory server for testing memory features without needing the full relay server setup and OpenAI API credentials.
+
+The server runs on `localhost:8082` and provides a simple API:
+- GET `/memory` - Get the current memory state
+- POST `/memory` - Update the memory state
+
+Memory is stored in `src/utils/memory.json`. The `set_memory()` function automatically tries:
+1. The relay server if it's running
+2. The memory server if the relay server is not available
+3. localStorage as a final fallback
+
+This ensures reliable memory persistence while maintaining code modularity and security.
 
 # Realtime API reference client
 
