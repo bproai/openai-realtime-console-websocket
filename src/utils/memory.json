@@ -3,10 +3,12 @@
     "requests_rate_limit": {
       "name": "requests",
       "limit": 100,
-      "remaining": 30,
-      "reset_minutes": 1000
+      "remaining": 29,
+      "reset_minutes": 1022
     },
     "location": "Mountain View",
-    "weather": "Mountain View: 6.5°C, wind 1.8 km/h"
+    "weather": "Mountain View: 6.5°C, wind 1.8 km/h",
+    "Mountain View": "2025-01-16T10:49:17.100340-08:00",
+    "local_time": "2025-01-16T10:49:17.100340-08:00"
   }
 }
