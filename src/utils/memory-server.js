@@ -58,14 +58,8 @@ app.post('/memory', async (req, res) => {
     
     await fs.writeFile(MEMORY_FILE_PATH, JSON.stringify({ memory: req.body }, null, 2));
     
-    // MongoDB Operation
-    const memoryDoc = await Memory.findOne();
-    if (memoryDoc) {
-      memoryDoc.memory = req.body;
-      await memoryDoc.save();
-    } else {
-      await Memory.create({ memory: req.body });
-    }
+    // MongoDB Operation - Create new document for each memory save
+    await Memory.create({ memory: req.body });
 
     res.json({ success: true });
   } catch (error) {
@@ -85,7 +79,7 @@ app.get('/memory', async (req, res) => {
     // Get from both sources
     const [fileData, mongoData] = await Promise.all([
       fs.readFile(MEMORY_FILE_PATH, 'utf8').catch(() => JSON.stringify({ memory: {} })),
-      Memory.findOne().catch(() => null)
+      Memory.findOne().sort({ createdAt: -1 }).catch(() => null)
     ]);
 
     // Prefer MongoDB data if available, fallback to file data
