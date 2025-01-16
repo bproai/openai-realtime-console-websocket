@@ -4,9 +4,11 @@
     "requests_rate_limit": {
       "name": "requests",
       "limit": 100,
-      "remaining": 20,
-      "reset_minutes": 1151
+      "remaining": 17,
+      "reset_minutes": 1182
     },
-    "location": "Sioux Falls"
+    "location": "Sioux Falls",
+    "Sioux Falls": "2025-01-16T13:31:17.864807-06:00",
+    "sioux_falls_local_time": "2025-01-16T13:31:17.864807-06:00"
   }
 }
