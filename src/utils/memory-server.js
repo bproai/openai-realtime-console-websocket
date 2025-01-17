@@ -4,6 +4,42 @@ import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import mongoose from 'mongoose';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// MySQL Connection Pool
+const pool = mysql.createPool({
+  host: process.env.MYSQL_HOST,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  database: process.env.MYSQL_DATABASE,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
+
+// Initialize MySQL table
+async function setupMySQL() {
+  try {
+    const connection = await pool.getConnection();
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS memory_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        memory_data JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    connection.release();
+    console.log('MySQL table initialized');
+  } catch (err) {
+    console.error('MySQL setup error:', err);
+  }
+}
+
+setupMySQL();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,6 +96,18 @@ app.post('/memory', async (req, res) => {
     
     // MongoDB Operation - Create new document for each memory save
     await Memory.create({ memory: req.body });
+
+    // MySQL Operation - Log memory save event
+    try {
+      await pool.execute(
+        'INSERT INTO memory_logs (memory_data) VALUES (?)',
+        [JSON.stringify(req.body)]
+      );
+      console.log('Memory event logged to MySQL');
+    } catch (mysqlError) {
+      console.error('Failed to log to MySQL:', mysqlError);
+      // Don't fail the request if MySQL logging fails
+    }
 
     res.json({ success: true });
   } catch (error) {

@@ -1,14 +1,14 @@
 {
   "memory": {
-    "test": "data",
     "requests_rate_limit": {
       "name": "requests",
       "limit": 100,
-      "remaining": 17,
-      "reset_minutes": 1182
+      "remaining": 33,
+      "reset_minutes": 962
     },
-    "location": "Sioux Falls",
-    "Sioux Falls": "2025-01-16T13:31:17.864807-06:00",
-    "sioux_falls_local_time": "2025-01-16T13:31:17.864807-06:00"
+    "location": "Mountain View",
+    "sioux_falls_local_time": "2025-01-16T13:31:17.864807-06:00",
+    "Mountain View": "2025-01-16T19:29:54.727084-08:00",
+    "mountain_view_local_time": "2025-01-16T19:29:54.727084-08:00"
   }
 }
