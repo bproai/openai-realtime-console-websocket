@@ -18,6 +18,8 @@ Install it by extracting the contents of this package and using;
 $ npm i
 ```
 
+**Note:** If modifying packages in `node_modules` directly, clear the `.cache` directory (`rm -rf ./node_modules/.cache`) as build tools may not detect manual changes.
+
 Start your server with:
 
 ```shell

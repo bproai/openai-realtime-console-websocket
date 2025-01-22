@@ -468,7 +468,7 @@ export function ConsolePage() {
 
     // Set instructions
     client.updateSession({ instructions: instructions });
-    // client.updateSession({ voice: 'shimmer' });
+    client.updateSession({ voice: 'alloy' });
     // Set transcription, otherwise we don't get user transcriptions back
     client.updateSession({ input_audio_transcription: { model: 'whisper-1' } });
 
@@ -495,7 +495,7 @@ export function ConsolePage() {
          required: ['query']
        },
      },
-     async ({ query, pageSize = 5 }: { query: string; pageSize?: number }) => {
+     async ({ query = "technology", pageSize = 5 }: { query: string; pageSize?: number }) => {
        try {
          const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
            params: {
