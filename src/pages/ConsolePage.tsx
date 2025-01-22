@@ -12,7 +12,7 @@ const LOCAL_RELAY_SERVER_URL: string =
   process.env.REACT_APP_LOCAL_RELAY_SERVER_URL || '';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-
+import axios from 'axios';
 import { RealtimeClient } from '@openai/realtime-api-beta';
 import { ItemType } from '@openai/realtime-api-beta/dist/lib/client.js';
 import { WavRecorder, WavStreamPlayer } from '../lib/wavtools/index.js';
@@ -296,8 +296,13 @@ export function ConsolePage() {
    * .appendInputAudio() for each sample
    */
   const startRecording = async () => {
-    setIsRecording(true);
     const client = clientRef.current;
+    if (!client.isConnected()) {
+      console.error('Cannot start recording: RealtimeAPI is not connected');
+      return;
+    }
+    
+    setIsRecording(true);
     const wavRecorder = wavRecorderRef.current;
     const wavStreamPlayer = wavStreamPlayerRef.current;
     const trackSampleOffset = await wavStreamPlayer.interrupt();
@@ -305,7 +310,21 @@ export function ConsolePage() {
       const { trackId, offset } = trackSampleOffset;
       await client.cancelResponse(trackId, offset);
     }
-    await wavRecorder.record((data) => client.appendInputAudio(data.mono));
+    
+    try {
+      await wavRecorder.record((data) => {
+        if (client.isConnected()) {
+          client.appendInputAudio(data.mono);
+        } else {
+          console.error('Cannot append audio: RealtimeAPI is not connected');
+          wavRecorder.pause();
+          setIsRecording(false);
+        }
+      });
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      setIsRecording(false);
+    }
   };
 
   /**
@@ -449,7 +468,7 @@ export function ConsolePage() {
 
     // Set instructions
     client.updateSession({ instructions: instructions });
-    client.updateSession({ voice: 'shimmer' });
+    // client.updateSession({ voice: 'shimmer' });
     // Set transcription, otherwise we don't get user transcriptions back
     client.updateSession({ input_audio_transcription: { model: 'whisper-1' } });
 
@@ -458,21 +477,53 @@ export function ConsolePage() {
    
    client.addTool(
      {
-       name: 'calculator',
-       description: 'A tool for performing basic mathematical calculations including addition, subtraction, multiplication, and division.',
+       name: 'get_news',
+       description: 'Fetches news articles from Google Custom Search based on a search query.',
        parameters: {
          type: 'object',
          properties: {
-           // Define parameters here
+           query: {
+             type: 'string',
+             description: 'Search query for news articles',
+           },
+           pageSize: {
+             type: 'number',
+             description: 'Number of articles to return (max 10)',
+             default: 5
+           }
          },
-         required: []
+         required: ['query']
        },
      },
-     async (params: { [key: string]: any }) => {
-       // Implement tool logic here
-       return { ok: 2 };
+     async ({ query, pageSize = 5 }: { query: string; pageSize?: number }) => {
+       try {
+         const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
+           params: {
+             q: query,
+             cx: process.env.REACT_APP_GOOGLE_CX,
+             key: process.env.REACT_APP_GOOGLE_API_KEY,
+             num: Math.min(pageSize, 10)
+           }
+         });
+
+         if (response.data.items) {
+           const articles = response.data.items
+             .slice(0, Math.min(pageSize, 10))
+             .map((item: any, index: number) =>
+               `${index + 1}. ${item.title} - ${item.link}`
+             ).join('\n');
+           return { articles };
+         } else {
+           return { error: 'No articles found.' };
+         }
+       } catch (error: any) {
+         console.error('Error fetching news:', error.message);
+         return { error: `Failed to fetch news: ${error.message}` };
+       }
      }
-   );client.addTool(
+   );
+   
+   client.addTool(
       {
         name: 'set_memory',
         description: 'Saves important data about the user into memory.',
@@ -677,7 +728,62 @@ export function ConsolePage() {
       }
     );
 
-    
+    client.addTool(
+      {
+        name: 'get_stock_price',
+        description: 'Retrieves the current stock price for a given stock symbol.',
+        parameters: {
+          type: 'object',
+          properties: {
+            symbol: {
+              type: 'string',
+              description: 'The stock symbol to look up (e.g., AAPL, GOOGL, MSFT)',
+            },
+          },
+          required: ['symbol'],
+        },
+      },
+      async ({ symbol }: { symbol: string }) => {
+        // Replace these placeholders with your actual code context
+        // For example, inside a <script> tag or a .js file loaded in the browser.
+
+        const ws = new WebSocket('ws://localhost:3000');
+
+        ws.onopen = () => {
+          console.log('Connected to WS server in the browser');
+          // Instead of sending a "type" and "url," just send the symbol directly
+          ws.send(JSON.stringify({
+            type: 'symbol',
+            symbol: symbol
+          }));
+        };
+        
+        ws.onmessage = (event) => {
+          console.log('Server says:', event.data);
+        };
+        
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+        
+        ws.onclose = () => {
+          console.log('WebSocket connection closed');
+        };
+
+        try {
+          const response = await fetch(`http://localhost:3001/api/stock/${symbol}`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch stock price: ${response.statusText}`);
+          }
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('Error fetching stock price:', error);
+          return { error: `Failed to get stock price for ${symbol}` };
+        }
+      }
+    );
+
     // handle realtime events from client + server for event logging
     client.on('realtime.event', (realtimeEvent: RealtimeEvent) => {
       setRealtimeEvents((realtimeEvents) => {
