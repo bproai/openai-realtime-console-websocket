@@ -12,15 +12,15 @@ management in the browser.
 # Starting the console
 
 This is a React project created using `create-react-app` that is bundled via Webpack.
-Install it by extracting the contents of this package and using;
+Install dependencies by running:
 
 ```shell
 $ npm i
 ```
 
-**Note:** If modifying packages in `node_modules` directly, clear the `.cache` directory (`rm -rf ./node_modules/.cache`) as build tools may not detect manual changes.
+**Note:** The project uses `patch-package` to apply patches to node modules. These patches are automatically applied during the postinstall script. If modifying packages in `node_modules` directly, clear the `.cache` directory (`rm -rf ./node_modules/.cache`) as build tools may not detect manual changes.
 
-Start your server with:
+Start your development server with:
 
 ```shell
 $ npm start
@@ -32,6 +32,7 @@ It should be available via `localhost:3000`.
 
 1. [Using the console](#using-the-console)
    1. [Using a relay server](#using-a-relay-server)
+   2. [Using the memory server](#using-the-memory-server)
 1. [Realtime API reference client](#realtime-api-reference-client)
    1. [Sending streaming audio](#sending-streaming-audio)
    1. [Adding and using tools](#adding-and-using-tools)
@@ -40,6 +41,7 @@ It should be available via `localhost:3000`.
 1. [Wavtools](#wavtools)
    1. [WavRecorder quickstart](#wavrecorder-quickstart)
    1. [WavStreamPlayer quickstart](#wavstreamplayer-quickstart)
+1. [Development](#development)
 1. [Acknowledgements and contact](#acknowledgements-and-contact)
 
 # Using the console
@@ -52,14 +54,14 @@ To start a session you'll need to **connect**. This will require microphone acce
 You can then choose between **manual** (Push-to-talk) and **vad** (Voice Activity Detection)
 conversation modes, and switch between them at any time.
 
-There are two functions enabled;
+There are two functions enabled:
 
 - `get_weather`: Ask for the weather anywhere and the model will do its best to pinpoint the
   location, show it on a map, and get the weather for that location. Note that it doesn't
   have location access, and coordinates are "guessed" from the model's training data so
   accuracy might not be perfect.
 - `set_memory`: You can ask the model to remember information for you, and it will store it in
-  a JSON blob on the left. The memory is persisted in two ways:
+  a JSON blob on the left. The memory is persisted in three ways:
   1. Through the memory server (runs on port 8082): `npm run memory`
   2. Through the relay server if it's running (port 8081)
   3. Always backed up to localStorage
@@ -88,7 +90,7 @@ OPENAI_API_KEY=YOUR_API_KEY
 REACT_APP_LOCAL_RELAY_SERVER_URL=http://localhost:8081
 ```
 
-You will need to restart both your React app and relay server for the `.env.` changes
+You will need to restart both your React app and relay server for the `.env` changes
 to take effect. The local server URL is loaded via [`ConsolePage.tsx`](/src/pages/ConsolePage.tsx).
 To stop using the relay server at any time, simply delete the environment
 variable or set it to empty string.
@@ -114,6 +116,7 @@ This server is **only a simple message relay**, but it can be extended to:
 - Handle certain calls you would like to keep secret (e.g. `instructions`) on
   the server directly
 - Restrict what types of events the client can receive and send
+- Integrate with databases (MongoDB and MySQL support is included)
 
 You will have to implement these features yourself.
 
@@ -380,6 +383,22 @@ trackOffset.trackId; // "my-track"
 trackOffset.offset; // sample number
 trackOffset.currentTime; // time in track
 ```
+
+# Development
+
+## Scripts
+
+The project includes several npm scripts for development and deployment:
+
+- `npm start`: Start the development server
+- `npm run build`: Build the production version
+- `npm run relay`: Start the relay server for handling API communication
+- `npm run memory`: Start the memory server for persistence
+- `npm run zip`: Create a distribution zip file (excludes node_modules, .git, .env, etc.)
+
+## Database Support
+
+The relay server includes support for both MongoDB and MySQL databases. To use these features, you'll need to implement the database connection and queries in your relay server extension.
 
 # Acknowledgements and contact
 
